@@ -1,0 +1,25 @@
+# python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+
+# jupyter
+.ipynb_checkpoints/
+
+# models
+*.pth
+
+# tensorboard
+runs/
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# data (ModelNet40 Dataset)
+data/
