@@ -22,4 +22,6 @@ logs/
 *.swp
 
 # data (ModelNet40 Dataset)
-data/
+data/ModelNet40/
+data/ModelNet40_ply/
+data/archive/
