@@ -33,18 +33,17 @@ def main():
 
     # dataloader - 根据 model 选择对应的 dataloader 和数据目录
     if args.model == 'ocnn':
-        data_dir = 'data/ModelNet40.ply.normalize'
+        data_dir = 'data/ModelNet40_ply'
         train_loader = get_ocnn_dataloader(data_dir, split='train')
         test_loader = get_ocnn_dataloader(data_dir, split='test')
     else:  # pointnet2
         data_dir = 'data/ModelNet40'
         train_loader = get_pointnet_dataloader(
-            data_dir, batch_size=32, num_points=1024, split='train', num_workers=4)
+            data_dir, batch_size=16, num_points=512, split='train', num_workers=4)
         test_loader = get_pointnet_dataloader(
-            data_dir, batch_size=32, num_points=1024, split='test', num_workers=4)
+            data_dir, batch_size=16, num_points=512, split='test', num_workers=4)
 
     train(model, train_loader, test_loader, DEVICE, args)
-    evaluate(model, test_loader, DEVICE, args)
 
 
 if __name__ == "__main__":

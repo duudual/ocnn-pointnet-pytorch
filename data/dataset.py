@@ -5,7 +5,7 @@ from torch.utils.data import Dataset
 
 import ocnn
 from ocnn.octree import Octree, Points, merge_octrees
-from .utils import ReadPly
+from .utils import ReadPly, random_point_dropout, random_scale_point_cloud, shift_point_cloud
 CATEGORIES = [
     'airplane', 'bathtub', 'bed', 'bench', 'bookshelf', 'bottle', 'bowl', 'car',
     'chair', 'cone', 'cup', 'curtain', 'desk', 'door', 'dresser', 'flower_pot',
@@ -74,7 +74,7 @@ class PointNetDataset(Dataset):
 
     def __len__(self):
         return len(self.file_list)
-
+    
     def __getitem__(self, idx):
         file_path, label = self.file_list[idx]
         points = read_off(file_path)
@@ -86,6 +86,10 @@ class PointNetDataset(Dataset):
             indices = np.random.choice(len(points), self.num_points, replace=False)
             points = points[indices]
 
+        if self.split == 'train':
+            points = random_point_dropout(points)
+            points = random_scale_point_cloud(points)
+            points = shift_point_cloud(points)
         points = pc_normalize(points)
 
         return {
@@ -236,10 +240,12 @@ class OCNNDataset(Dataset):
         return output
 
 def get_ocnn_dataloader(root_dir, batch_size=32, split='train',
-                       depth=5, full_depth=2, distort=True,
+                       depth=5, full_depth=2, distort=None,
                        angle=(0, 0, 5), interval=(1, 1, 1), scale=0.25,
                        jitter=0.125, flip=(0, 0, 0), orient_normal='xyz',
                        uniform=False, num_workers=4):
+    if distort is None:
+        distort = (split == 'train')
     dataset = OCNNDataset(
         root_dir=root_dir, split=split,
         depth=depth, full_depth=full_depth,

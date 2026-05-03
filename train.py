@@ -1,6 +1,7 @@
 import os
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
@@ -9,14 +10,15 @@ def train(model, train_loader, test_loader, device, args):
 
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.7)
     best_acc = 0.0
 
     writer = SummaryWriter(log_dir=args.log_dir)
 
-    model.train()
     is_pointnet2 = args.model == 'pointnet2'
 
     for epoch in range(args.epochs):
+        model.train()
         total_loss = 0.0
         total_correct = 0
         total_samples = 0
@@ -29,20 +31,22 @@ def train(model, train_loader, test_loader, device, args):
             if is_pointnet2:
                 points = batch['points'].permute(0, 2, 1)  # [B, 3, N]
                 logits, _ = model(points)
-                loss = criterion(logits, batch['label'].long())
+                # PointNet2 forward already returns log_softmax, use nll_loss
+                loss = F.nll_loss(logits, batch['label'].long())
+                _, predicted = torch.max(logits, 1)
+                correct = (predicted == batch['label']).sum().item()
             else:
-                # OCNN: forward takes data, octree, depth
-                logits, _ = model(batch)
-                loss = criterion(logits, batch['label'].long())
+                # OCNN: forward returns (loss, accu)
+                loss, accu = model(batch)
+                correct = int(accu.item() * batch['label'].size(0))
 
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
             total_loss += loss.item()
-            _, predicted = torch.max(logits, 1)
             total_samples += batch['label'].size(0)
-            total_correct += (predicted == batch['label']).sum().item()
+            total_correct += correct
 
             # Update pbar with loss and acc
             avg_loss = total_loss / (pbar.n + 1)
@@ -59,6 +63,7 @@ def train(model, train_loader, test_loader, device, args):
         # tensorboard log
         writer.add_scalar('Loss/train', total_loss / len(train_loader), epoch)
         writer.add_scalar('Accuracy/val', acc, epoch)
+        scheduler.step()
 
     writer.close()
 
@@ -66,7 +71,6 @@ def evaluate(model, dataloader, device, args):
     model.eval()
     correct = 0
     total = 0
-    criterion = nn.CrossEntropyLoss()
     total_loss = 0.0
     is_pointnet2 = args.model == 'pointnet2'
 
@@ -77,16 +81,16 @@ def evaluate(model, dataloader, device, args):
             if is_pointnet2:
                 points = batch['points'].permute(0, 2, 1)  # [B, 3, N]
                 logits, _ = model(points)
+                loss = F.nll_loss(logits, batch['label'].long())
+                _, predicted = torch.max(logits, 1)
+                correct += (predicted == batch['label']).sum().item()
             else:
-                data = model.get_input_feature(batch['octree'])
-                logits = model.model(data, batch['octree'], batch['octree'].depth)
+                # OCNN: forward returns (loss, accu)
+                loss, accu = model(batch)
+                correct += int(accu.item() * batch['label'].size(0))
 
-            loss = criterion(logits, batch['label'].long())
             total_loss += loss.item()
-
-            _, predicted = torch.max(logits, 1)
             total += batch['label'].size(0)
-            correct += (predicted == batch['label']).sum().item()
 
     accuracy = 100 * correct / total
     avg_loss = total_loss / len(dataloader)
