@@ -13,7 +13,7 @@ def train(model, train_loader, test_loader, device, args):
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.7)
     best_acc = 0.0
 
-    writer = SummaryWriter(log_dir=args.log_dir)
+    writer = SummaryWriter(log_dir=os.path.join(args.log_dir, args.model))
 
     is_pointnet2 = args.model == 'pointnet2'
 
@@ -61,8 +61,11 @@ def train(model, train_loader, test_loader, device, args):
         print(f'Epoch {epoch+1}/{args.epochs}, Loss: {total_loss / len(train_loader)}, Accuracy: {acc}')
 
         # tensorboard log
-        writer.add_scalar('Loss/train', total_loss / len(train_loader), epoch)
-        writer.add_scalar('Accuracy/val', acc, epoch)
+        train_loss = total_loss / len(train_loader)
+        train_acc = 100 * total_correct / total_samples
+        writer.add_scalar('Loss/train', train_loss, epoch)
+        writer.add_scalar('Accuracy/train', train_acc, epoch)
+        writer.add_scalar('Accuracy/test', acc, epoch)
         scheduler.step()
 
     writer.close()
